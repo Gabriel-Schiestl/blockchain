@@ -4,10 +4,7 @@ import { network, tasks } from "hardhat";
 config();
 
 async function main() {
-  const { ethers } = await network.connect({
-    network: "sepolia",
-    chainType: "l1",
-  });
+  const { ethers } = await network.connect();
   const SimpleStorageFactory = await ethers.getContractFactory("SimpleStorage");
   console.log("Deploying contract...");
   const simpleStorage = await SimpleStorageFactory.deploy();
@@ -20,14 +17,21 @@ async function main() {
     await simpleStorage.deploymentTransaction()?.wait(6);
     await verify(await simpleStorage.getAddress(), []);
   }
+
+  const currentValue = await simpleStorage.retrieve();
+  console.log(`Current Value is: ${currentValue}`);
+
+  const transactionResponse = await simpleStorage.store(7);
+  await transactionResponse.wait();
+  const updatedValue = await simpleStorage.retrieve();
+  console.log(`Updated Value is: ${updatedValue}`);
 }
 
 async function verify(contractAddress: string, args: any[]) {
   console.log("Verifying contract...");
   try {
-    await tasks.getTask("verify:verify").run({
+    await tasks.getTask("verify").run({
       address: contractAddress,
-      constructorArguments: args,
     });
   } catch (e: any) {
     if (e.message.toLowerCase().includes("already verified")) {

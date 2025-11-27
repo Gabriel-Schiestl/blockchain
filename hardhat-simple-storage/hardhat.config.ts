@@ -1,9 +1,15 @@
 import hardhatToolboxMochaEthersPlugin from "@nomicfoundation/hardhat-toolbox-mocha-ethers";
-import { configVariable, defineConfig } from "hardhat/config";
+import { configVariable, defineConfig, task } from "hardhat/config";
 import hardhatVerify from "@nomicfoundation/hardhat-verify";
+import "dotenv/config";
+
+const blockNumberTask = task("block-number", "Prints the current block number")
+  .setAction(() => import("./tasks/blockNumber.js"))
+  .build();
 
 export default defineConfig({
   plugins: [hardhatToolboxMochaEthersPlugin, hardhatVerify],
+  tasks: [blockNumberTask],
   solidity: {
     profiles: {
       default: {
