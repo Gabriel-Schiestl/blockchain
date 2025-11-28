@@ -2,13 +2,18 @@ import hardhatToolboxMochaEthersPlugin from "@nomicfoundation/hardhat-toolbox-mo
 import { configVariable, defineConfig, task } from "hardhat/config";
 import hardhatVerify from "@nomicfoundation/hardhat-verify";
 import "dotenv/config";
+import hardhatNetworkHelpers from "@nomicfoundation/hardhat-network-helpers";
 
 const blockNumberTask = task("block-number", "Prints the current block number")
   .setAction(() => import("./tasks/blockNumber.js"))
   .build();
 
 export default defineConfig({
-  plugins: [hardhatToolboxMochaEthersPlugin, hardhatVerify],
+  plugins: [
+    hardhatToolboxMochaEthersPlugin,
+    hardhatVerify,
+    hardhatNetworkHelpers,
+  ],
   tasks: [blockNumberTask],
   solidity: {
     profiles: {
@@ -34,6 +39,11 @@ export default defineConfig({
     hardhatOp: {
       type: "edr-simulated",
       chainType: "op",
+    },
+    localhost: {
+      url: "http://localhost:8545",
+      chainId: 31337,
+      type: "http",
     },
     sepolia: {
       type: "http",
