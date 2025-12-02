@@ -4,8 +4,13 @@ pragma solidity ^0.8.8;
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 import "./PriceConverter.sol";
 
-error NotOwner();
-
+error FundMe__NotOwner();
+/**
+ * @title A contract for crowd funding
+ * @author Gabriel Schiestl
+ * @notice This contract is to demo a sample funding contract
+ * @dev This implements price feeds as our library
+ */
 contract FundMe {
     using PriceConverter for uint256;
 
@@ -17,12 +22,30 @@ contract FundMe {
     uint256 public constant MINIMUM_USD = 50 * 10 ** 18;
 
     AggregatorV3Interface public immutable priceFeed;
+
+    modifier onlyOwner {
+        // require(msg.sender == owner);
+        if (msg.sender != i_owner) revert FundMe__NotOwner();
+        _;
+    }
     
     constructor(address priceFeedAddress) {
         i_owner = msg.sender;
         priceFeed = AggregatorV3Interface(priceFeedAddress);
     }
 
+    fallback() external payable {
+        fund();
+    }
+
+    receive() external payable {
+        fund();
+    }
+
+    /**
+     * @notice This function funds this contract
+     * @dev This implements price feeds as our library
+     */
     function fund() public payable {
         require(msg.value.getConversionRate(priceFeed) >= MINIMUM_USD, "You need to spend more ETH!");
         // require(PriceConverter.getConversionRate(msg.value) >= MINIMUM_USD, "You need to spend more ETH!");
@@ -32,12 +55,6 @@ contract FundMe {
     
     function getVersion() public view returns (uint256){
         return priceFeed.version();
-    }
-    
-    modifier onlyOwner {
-        // require(msg.sender == owner);
-        if (msg.sender != i_owner) revert NotOwner();
-        _;
     }
     
     function withdraw() public onlyOwner {
@@ -66,14 +83,6 @@ contract FundMe {
     //   yes   no
     //  /        \
     //receive()  fallback()
-
-    fallback() external payable {
-        fund();
-    }
-
-    receive() external payable {
-        fund();
-    }
 
 }
 
