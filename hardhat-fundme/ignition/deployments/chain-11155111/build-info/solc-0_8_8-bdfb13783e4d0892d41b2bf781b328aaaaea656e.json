@@ -1,0 +1,48 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_8-bdfb13783e4d0892d41b2bf781b328aaaaea656e",
+  "solcVersion": "0.8.8",
+  "solcLongVersion": "0.8.8+commit.dddeac2f",
+  "userSourceNameMap": {
+    "contracts/FundMe.sol": "project/contracts/FundMe.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "london",
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode",
+            "evm.deployedBytecode",
+            "evm.methodIdentifiers",
+            "metadata"
+          ]
+        }
+      },
+      "remappings": [
+        "project/:@chainlink/contracts/=npm/@chainlink/contracts@1.5.0/",
+        "project/:@chainlink/contracts/=npm/@chainlink/contracts@1.5.0/"
+      ]
+    },
+    "sources": {
+      "npm/@chainlink/contracts@1.5.0/src/v0.8/shared/interfaces/AggregatorV3Interface.sol": {
+        "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.0;\n\n// solhint-disable-next-line interface-starts-with-i\ninterface AggregatorV3Interface {\n  function decimals() external view returns (uint8);\n\n  function description() external view returns (string memory);\n\n  function version() external view returns (uint256);\n\n  function getRoundData(\n    uint80 _roundId\n  ) external view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);\n\n  function latestRoundData()\n    external\n    view\n    returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound);\n}\n"
+      },
+      "project/contracts/FundMe.sol": {
+        "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.8;\n\nimport {AggregatorV3Interface} from \"@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol\";\nimport \"./PriceConverter.sol\";\n\nerror FundMe__NotOwner();\nerror FundMe__NotEnoughETH();\nerror FundMe__WithdrawFailed();\n\n/**\n * @title A contract for crowd funding\n * @author Gabriel Schiestl\n * @notice This contract is to demo a sample funding contract\n * @dev This implements price feeds as our library\n */\ncontract FundMe {\n    using PriceConverter for uint256;\n\n    mapping(address => uint256) private s_addressToAmountFunded;\n    address[] private s_funders;\n\n    // Could we make this constant?  /* hint: no! We should make it immutable! */\n    address private immutable i_owner;\n    uint256 private constant MINIMUM_USD = 50 * 10 ** 18;\n\n    AggregatorV3Interface private immutable i_priceFeed;\n\n    modifier onlyOwner() {\n        // require(msg.sender == owner);\n        if (msg.sender != i_owner) revert FundMe__NotOwner();\n        _;\n    }\n\n    constructor(address priceFeedAddress) {\n        i_owner = msg.sender;\n        i_priceFeed = AggregatorV3Interface(priceFeedAddress);\n    }\n\n    fallback() external payable {\n        fund();\n    }\n\n    receive() external payable {\n        fund();\n    }\n\n    /**\n     * @notice This function funds this contract\n     * @dev This implements price feeds as our library\n     */\n    function fund() public payable {\n        // more efficient\n        if (msg.value.getConversionRate(i_priceFeed) < MINIMUM_USD)\n            revert FundMe__NotEnoughETH();\n\n        // require(\n        //     msg.value.getConversionRate(i_priceFeed) >= MINIMUM_USD,\n        //     \"You need to spend more ETH!\"\n        // );\n        s_addressToAmountFunded[msg.sender] += msg.value;\n        s_funders.push(msg.sender);\n    }\n\n    function getVersion() public view returns (uint256) {\n        return i_priceFeed.version();\n    }\n\n    function withdraw() public onlyOwner {\n        for (\n            uint256 funderIndex = 0;\n            funderIndex < s_funders.length;\n            funderIndex++\n        ) {\n            // we read a lot from storage\n            address funder = s_funders[funderIndex]; // we read a lot from storage\n            s_addressToAmountFunded[funder] = 0;\n        }\n        s_funders = new address[](0);\n        // // transfer\n        // payable(msg.sender).transfer(address(this).balance);\n        // // send\n        // bool sendSuccess = payable(msg.sender).send(address(this).balance);\n        // require(sendSuccess, \"Send failed\");\n        // call\n        (bool callSuccess, ) = payable(msg.sender).call{\n            value: address(this).balance\n        }(\"\");\n        if (!callSuccess) revert FundMe__WithdrawFailed();\n        //require(callSuccess, \"Call failed\");\n    }\n\n    function cheaperWithdraw() public payable onlyOwner {\n        address[] memory funders = s_funders; // we use memory because without it, funders would be a reference to a storage variable(each change in funders would change the storage, it is expensive)\n        for (\n            uint256 funderIndex = 0;\n            funderIndex < funders.length;\n            funderIndex++\n        ) {\n            // we read a lot from storage\n            address funder = funders[funderIndex]; // we read a lot from storage\n            s_addressToAmountFunded[funder] = 0;\n        }\n        s_funders = new address[](0);\n\n        (bool callSuccess, ) = payable(msg.sender).call{\n            value: address(this).balance\n        }(\"\");\n        require(callSuccess, \"Call failed\");\n    }\n\n    function getOwner() public view returns (address) {\n        return i_owner;\n    }\n\n    function getMinimumUsd() public pure returns (uint256) {\n        return MINIMUM_USD;\n    }\n\n    function getAmountFundedByAddress(\n        address funder\n    ) public view returns (uint256) {\n        return s_addressToAmountFunded[funder];\n    }\n\n    function getFunder(uint256 index) public view returns (address) {\n        return s_funders[index];\n    }\n\n    function getPriceFeed() public view returns (AggregatorV3Interface) {\n        return i_priceFeed;\n    }\n\n    // Explainer from: https://solidity-by-example.org/fallback/\n    // Ether is sent to contract\n    //      is msg.data empty?\n    //          /   \\\n    //         yes  no\n    //         /     \\\n    //    receive()?  fallback()\n    //     /   \\\n    //   yes   no\n    //  /        \\\n    //receive()  fallback()\n}\n\n// Concepts we didn't cover yet (will cover in later sections)\n// 1. Enum\n// 2. Events\n// 3. Try / Catch\n// 4. Function Selector\n// 5. abi.encode / decode\n// 6. Hash with keccak256\n// 7. Yul / Assembly\n"
+      },
+      "project/contracts/PriceConverter.sol": {
+        "content": "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.8;\n\nimport {AggregatorV3Interface} from \"@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol\";\n\n// Why is this a library and not abstract?\n// Why not an interface?\nlibrary PriceConverter {\n    // We could make this public, but then we'd have to deploy it\n    function getPrice(\n        AggregatorV3Interface priceFeed\n    ) internal view returns (uint256) {\n        (, int256 answer, , , ) = priceFeed.latestRoundData();\n        // ETH/USD rate in 18 digit\n        return uint256(answer * 10000000000);\n        // or (Both will do the same thing)\n        // return uint256(answer * 1e10); // 1* 10 ** 10 == 10000000000\n    }\n\n    // 1000000000\n    function getConversionRate(\n        uint256 ethAmount,\n        AggregatorV3Interface priceFeed\n    ) internal view returns (uint256) {\n        uint256 ethPrice = getPrice(priceFeed);\n        uint256 ethAmountInUsd = (ethPrice * ethAmount) / 1000000000000000000;\n        // or (Both will do the same thing)\n        // uint256 ethAmountInUsd = (ethPrice * ethAmount) / 1e18; // 1 * 10 ** 18 == 1000000000000000000\n        // the actual ETH/USD conversion rate, after adjusting the extra 0s.\n        return ethAmountInUsd;\n    }\n}\n"
+      }
+    }
+  }
+}

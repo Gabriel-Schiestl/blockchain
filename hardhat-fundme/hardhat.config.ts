@@ -2,6 +2,13 @@ import hardhatToolboxMochaEthersPlugin from "@nomicfoundation/hardhat-toolbox-mo
 import { configVariable, defineConfig } from "hardhat/config";
 import "dotenv/config";
 
+export const developmentChains = [
+  "hardhat",
+  "localhost",
+  "hardhatMainnet",
+  "hardhatOp",
+];
+
 export default defineConfig({
   plugins: [hardhatToolboxMochaEthersPlugin],
   solidity: {
