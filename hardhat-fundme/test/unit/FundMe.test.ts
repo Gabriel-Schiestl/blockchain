@@ -30,7 +30,7 @@ describe("FundMe", function () {
 
   describe("constructor", function () {
     it("sets the aggregator addresses correctly", async function () {
-      const response = await fundMe.priceFeed();
+      const response = await fundMe.getPriceFeed();
       const address = await mockV3Aggregator.getAddress();
       expect(response).equal(address);
     });
@@ -38,15 +38,16 @@ describe("FundMe", function () {
 
   describe("fund", function () {
     it("fails if you don't send enough ETH", async function () {
-      await expect(fundMe.fund()).to.be.revertedWith(
-        "You need to spend more ETH!"
+      await expect(fundMe.fund()).to.be.revertedWithCustomError(
+        fundMe,
+        "FundMe__NotEnoughETH"
       );
     });
 
     it("updates the amount funded data structure", async function () {
       const sendValue = 1_000000000000000000n; // 1 ETH
       await fundMe.fund({ value: sendValue });
-      const response = await fundMe.s_addressToAmountFunded(
+      const response = await fundMe.getAmountFundedByAddress(
         await deployer.getAddress()
       );
       expect(response).to.equal(sendValue);
@@ -55,7 +56,7 @@ describe("FundMe", function () {
     it("adds funder to array of funders", async function () {
       const sendValue = 1_000000000000000000n; // 1 ETH
       await fundMe.fund({ value: sendValue });
-      const funder = await fundMe.s_funders(0);
+      const funder = await fundMe.getFunder(0);
       expect(funder).to.equal(await deployer.getAddress());
     });
   });
@@ -138,7 +139,7 @@ describe("FundMe", function () {
       );
 
       for (let i = 1; i <= fundersCount; i++) {
-        const funded = await fundMe.s_addressToAmountFunded(
+        const funded = await fundMe.getAmountFundedByAddress(
           await accounts[i].getAddress()
         );
         expect(funded).to.equal(0n);
@@ -224,7 +225,7 @@ describe("FundMe", function () {
       );
 
       for (let i = 1; i <= fundersCount; i++) {
-        const funded = await fundMe.s_addressToAmountFunded(
+        const funded = await fundMe.getAmountFundedByAddress(
           await accounts[i].getAddress()
         );
         expect(funded).to.equal(0n);
@@ -241,7 +242,7 @@ describe("FundMe", function () {
         value: sendValue,
       });
 
-      const balance = await fundMe.s_addressToAmountFunded(deployer.address);
+      const balance = await fundMe.getAmountFundedByAddress(deployer.address);
       expect(balance).to.equal(sendValue);
     });
 
@@ -254,7 +255,7 @@ describe("FundMe", function () {
         data: "0x1234",
       });
 
-      const balance = await fundMe.s_addressToAmountFunded(deployer.address);
+      const balance = await fundMe.getAmountFundedByAddress(deployer.address);
       expect(balance).to.equal(sendValue);
     });
 
@@ -266,7 +267,7 @@ describe("FundMe", function () {
           to: await fundMe.getAddress(),
           value: sendValue,
         })
-      ).to.be.revertedWith("You need to spend more ETH!");
+      ).to.be.revertedWithCustomError(fundMe, "FundMe__NotEnoughETH");
     });
   });
 });

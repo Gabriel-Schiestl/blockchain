@@ -5,6 +5,8 @@ import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interf
 import "./PriceConverter.sol";
 
 error FundMe__NotOwner();
+error FundMe__NotEnoughETH();
+error FundMe__WithdrawFailed();
 
 /**
  * @title A contract for crowd funding
@@ -15,14 +17,14 @@ error FundMe__NotOwner();
 contract FundMe {
     using PriceConverter for uint256;
 
-    mapping(address => uint256) public s_addressToAmountFunded;
-    address[] public s_funders;
+    mapping(address => uint256) private s_addressToAmountFunded;
+    address[] private s_funders;
 
     // Could we make this constant?  /* hint: no! We should make it immutable! */
-    address public immutable i_owner;
-    uint256 public constant MINIMUM_USD = 50 * 10 ** 18;
+    address private immutable i_owner;
+    uint256 private constant MINIMUM_USD = 50 * 10 ** 18;
 
-    AggregatorV3Interface public immutable priceFeed;
+    AggregatorV3Interface private immutable i_priceFeed;
 
     modifier onlyOwner() {
         // require(msg.sender == owner);
@@ -32,7 +34,7 @@ contract FundMe {
 
     constructor(address priceFeedAddress) {
         i_owner = msg.sender;
-        priceFeed = AggregatorV3Interface(priceFeedAddress);
+        i_priceFeed = AggregatorV3Interface(priceFeedAddress);
     }
 
     fallback() external payable {
@@ -48,17 +50,20 @@ contract FundMe {
      * @dev This implements price feeds as our library
      */
     function fund() public payable {
-        require(
-            msg.value.getConversionRate(priceFeed) >= MINIMUM_USD,
-            "You need to spend more ETH!"
-        );
-        // require(PriceConverter.getConversionRate(msg.value) >= MINIMUM_USD, "You need to spend more ETH!");
+        // more efficient
+        if (msg.value.getConversionRate(i_priceFeed) < MINIMUM_USD)
+            revert FundMe__NotEnoughETH();
+
+        // require(
+        //     msg.value.getConversionRate(i_priceFeed) >= MINIMUM_USD,
+        //     "You need to spend more ETH!"
+        // );
         s_addressToAmountFunded[msg.sender] += msg.value;
         s_funders.push(msg.sender);
     }
 
     function getVersion() public view returns (uint256) {
-        return priceFeed.version();
+        return i_priceFeed.version();
     }
 
     function withdraw() public onlyOwner {
@@ -81,7 +86,8 @@ contract FundMe {
         (bool callSuccess, ) = payable(msg.sender).call{
             value: address(this).balance
         }("");
-        require(callSuccess, "Call failed");
+        if (!callSuccess) revert FundMe__WithdrawFailed();
+        //require(callSuccess, "Call failed");
     }
 
     function cheaperWithdraw() public payable onlyOwner {
@@ -101,6 +107,28 @@ contract FundMe {
             value: address(this).balance
         }("");
         require(callSuccess, "Call failed");
+    }
+
+    function getOwner() public view returns (address) {
+        return i_owner;
+    }
+
+    function getMinimumUsd() public pure returns (uint256) {
+        return MINIMUM_USD;
+    }
+
+    function getAmountFundedByAddress(
+        address funder
+    ) public view returns (uint256) {
+        return s_addressToAmountFunded[funder];
+    }
+
+    function getFunder(uint256 index) public view returns (address) {
+        return s_funders[index];
+    }
+
+    function getPriceFeed() public view returns (AggregatorV3Interface) {
+        return i_priceFeed;
     }
 
     // Explainer from: https://solidity-by-example.org/fallback/
